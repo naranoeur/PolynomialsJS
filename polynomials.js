@@ -57,6 +57,9 @@ function isNumber (s) {
 // --- Expression ---- //
 
 function parseExpression (str) {
+	// remove spaces
+	str = removeSpaces(str);
+
   console.log(str);
   // Remove parenthesis
   const stack = [];
@@ -87,6 +90,11 @@ function parseExpression (str) {
   console.log(pols);
 
 	// parse each term
+	for (let i = 0; i < pols.length; i++) {
+		pols[i] = parsePolynomial(pols[i], pols);
+	}
+
+	pols[pols.length - 1].print();
 
 	// for (let i = 0; i < pols.length; i++) {
 	// 	let start = pols[i].indexOf('@');
@@ -108,7 +116,7 @@ function parseExpression (str) {
 
 // ---- Polynomials ----- //
 
-function Polynomial (terms) {
+function Polynomial (terms = []) {
 	this.terms = terms;
 }
 
@@ -207,6 +215,7 @@ function parsePolynomial (str, history = []) {
 	// term.coef *= operator;
 	// terms.push(term);
 
+	// pol gives us the regular part of the polynomial.
 	let pol = new Polynomial();
 	let special = [];
 
@@ -220,11 +229,16 @@ function parsePolynomial (str, history = []) {
 		}
 	}
 
+	// parse the special terms
 	for (let i = 0; i < special.length; i++) {
-
+		if (special[i].operator == -1) {
+			pol.subtract(parseSpecialTerm(special[i].buffer, history));
+		} else {
+			pol.add(parseSpecialTerm(special[i].buffer, history));
+		}
 	}
 
-	return new Polynomial(terms);
+	return pol;
 }
 
 
@@ -313,7 +327,7 @@ function parseTerm (str) {
 }
 
 
-function parseSpecialTerm (str) {
+function parseSpecialTerm (str, history) {
   // console.log(str);
   if (str.length == 0 || isOperator(str[0]) || isOperator(str[str.length - 1])) {
     return null;
@@ -341,8 +355,8 @@ function parseSpecialTerm (str) {
 	let regular = [];
 
 	for (let i = 0; i < subterms.length; i++) {
-		if (subterms[i].buffer.indexOf('@') < 0) {
-			retular.push(subterm[i]);
+		if (subterms[i].indexOf('@') < 0) {
+			regular.push(subterms[i]);
 		} else {
 			special.push(subterms[i]);
 		}
@@ -350,7 +364,7 @@ function parseSpecialTerm (str) {
 
 	//parse special subterms
 	for (let i = 0; i < special.length; i++) {
-		special[i] = parseSpecialSubterm(special[i]);
+		special[i] = parseSpecialSubterm(special[i], history);
 	}
 	// parse regular subterms
 	for (let i = 0; i < regular.length; i++) {
@@ -362,12 +376,12 @@ function parseSpecialTerm (str) {
   for (let i = 0; i < regular.length; i++) {
     if (isNaN(regular[i])) {
       if (term.hasOwnProperty(regular[i].coef)) {
-        term.subterms[subterms[i].coef] += regular[i].exp;
+        term.subterms[regular[i].coef] += regular[i].exp;
       } else {
-        term.subterms[subterms[i].coef] = regular[i].exp;
+        term.subterms[regular[i].coef] = regular[i].exp;
       }
     } else {
-      term.coef *= subterms[i];
+      term.coef *= regular[i];
     }
   }
 
@@ -496,7 +510,7 @@ function parseSpecialSubterm (str, specialArr) {
 	}
 
 	// handle return type
-	if (!isNaN(coef) && !isNan(exp)) {
+	if (!isNaN(coef) && !isNaN(exp)) {
 		let term = new Term();
 		term.coef = Math.pow(coef, exp);
 		return new Polynomial([term]);
@@ -559,7 +573,12 @@ function getPolynomialVariable () {
 	return k[0];
 }
 
- parseExpression('(5*x^2 + 1) + x^3 + 1');
+function removeSpaces (s) {
+	return s.replace(/\s+/g, '');
+}
+
+ //parseExpression('(5*x^2 + 1) + x^3 + 1');
+parseExpression('5*(5*(2)^(-2.3) + 1)');
 
 // let pol1 = parsePolynomial("5");
 // let pol2 = parsePolynomial("x^3 + 2");
