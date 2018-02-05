@@ -50,17 +50,17 @@ function isSpecial (s) {
 }
 
 function isNumber (s) {
-	return !isNan(Number(s));
+	return !isNaN(Number(s));
 }
 
 
 // --- Expression ---- //
 
+// Tokenizes string based on parenthesis
 function parseExpression (str) {
 	// remove spaces
 	str = removeSpaces(str);
 
-  console.log(str);
   // Remove parenthesis
   const stack = [];
   const pols = [];
@@ -83,10 +83,10 @@ function parseExpression (str) {
       i++;
     }
   }
+	pols.push(str);
   if (stack.length > 0 || pols.length == 0) {
     return null;
   }
-  pols.push(str);
   console.log(pols);
 
 	// parse each term
@@ -95,21 +95,6 @@ function parseExpression (str) {
 	}
 
 	pols[pols.length - 1].print();
-
-	// for (let i = 0; i < pols.length; i++) {
-	// 	let start = pols[i].indexOf('@');
-	// 	if (start < 0) {
-	// 		pols[i] = parsePolynomial(pols[i]);
-	// 		continue;
-	// 	}
-	// 	let end = start + 1;
-	// 	while (end < pols[i].length && isDigit(pols[i][end])) {
-	// 		end++;
-	// 	}
-	// 	let index = Number(pols[i].substring(start + 1, end));
-	// 	console.log(index);
-  //
-	// }
 
 }
 
@@ -181,25 +166,18 @@ function parsePolynomial (str, history = []) {
 
   let terms = [];
   let buffer = "";
-  let operator = 1; // true: +, false: -
-  let prev = '';
+  let operator = 1; //  + or -
 
   for (let i = 0; i < str.length; i++) {
     if (str[i] == '+') {
       if (buffer.length > 0) {
 				terms.push({ operator, buffer });
-				//let term = parseTerm(buffer);
-				//term.coef *= operator;
-        //terms.push(term);
 				operator = 1;
         buffer = "";
       }
     } else if (str[i] == '-') {
       if (buffer.length > 0) {
 				terms.push({ operator, buffer });
-				// let term = parseTerm(buffer);
-				// term.coef *= operator;
-        // terms.push(term);
         operator = -1;
         buffer = "";
       } else {
@@ -210,15 +188,13 @@ function parsePolynomial (str, history = []) {
     }
 
   }
-	terms.push({ operator, buffer });
-	// let term = parseTerm(buffer);
-	// term.coef *= operator;
-	// terms.push(term);
+	terms.push({ operator, buffer }); // place leftover elements
 
 	// pol gives us the regular part of the polynomial.
 	let pol = new Polynomial();
 	let special = [];
 
+	// Split terms up into special and regular parts. If regular then parse while at it
 	for (let i = 0; i < terms.length; i++) {
 		if (terms[i].buffer.indexOf('@') < 0) {
 			let term = parseTerm(terms[i].buffer);
@@ -288,41 +264,100 @@ Term.prototype.same = function (t) {
 	 return result;
  }
 
+ /*
+
+ let terms = [];
+ let buffer = "";
+ let operator = 1; //  + or -
+
+ for (let i = 0; i < str.length; i++) {
+	 if (str[i] == '+') {
+		 if (buffer.length > 0) {
+			 terms.push({ operator, buffer });
+			 operator = 1;
+			 buffer = "";
+		 }
+	 } else if (str[i] == '-') {
+		 if (buffer.length > 0) {
+			 terms.push({ operator, buffer });
+			 operator = -1;
+			 buffer = "";
+		 } else {
+			 operator *= -1;
+		 }
+	 } else {
+		 buffer += str[i];
+	 }
+
+ }
+ terms.push({ operator, buffer }); // place leftover elements
+
+ */
+
+ function tokenizeTerm (str) {
+	 let subterms = [];
+	 let buffer = "";
+	 let operator = true;
+	 for (let i = 0; i < str.length; i++) {
+		 if (str[i] == '*' || str[i] == '/') {
+			 if (buffer.length == 0) {
+				 console.log("Invalid subterm expression: two operators * or / next to each other");
+				 return null;
+			 } else {
+				 subterms.push({operator, subterm: buffer});
+				 buffer = "";
+			 }
+			 if (str[i] == '*') {
+				 operator = true;
+			 } else {
+				 operator = false;
+			 }
+		 } else {
+			 buffer += str[i];
+		 }
+	 }
+	 subterms.push({operator, subterm: buffer});
+	 return subterms;
+ }
+
+ function constructTermFromSubterms (tokens) {
+	 let term = new Term();
+
+		for (let i = 0; i < tokens.length; i++) {
+			if (isNaN(tokens[i].subterm)) {
+
+				if (!tokens[i].operator) {
+					tokens[i].subterm.exp *= -1;
+				}
+
+				if (term.hasOwnProperty(tokens[i].coef)) {
+					term.subterms[tokens[i].subterm.coef] += tokens[i].subterm.exp;
+				} else {
+					term.subterms[tokens[i].subterm.coef] = tokens[i].subterm.exp;
+				}
+			} else {
+				if (tokens[i].operator) {
+					term.coef *= tokens[i].subterm;
+				} else {
+					term.coef /= tokens[i].subterm;
+				}
+			}
+		}
+		return term;
+ }
+
 function parseTerm (str) {
   // console.log(str);
   if (str.length == 0 || isOperator(str[0]) || isOperator(str[str.length - 1])) {
     return null;
   }
 
-  let subterms = [];
-  let buffer = "";
-  for (let i = 0; i < str.length; i++) {
-    if (str[i] == '*') {
-      if (buffer.length == 0) {
-        return null;
-      } else {
-        subterms.push(parseSubterm(buffer));
-        buffer = "";
-      }
-    } else {
-      buffer += str[i];
-    }
-  }
-  subterms.push(parseSubterm(buffer));
+  let subterms = tokenizeTerm(str);
+	for (let i = 0; i < subterms.length; i++) {
+		subterms[i].subterm = parseSubterm(subterms[i].subterm);
+	}
+  let result = constructTermFromSubterms(subterms);
 
-  let result = new Term();
-
-  for (let i = 0; i < subterms.length; i++) {
-    if (isNaN(subterms[i])) {
-      if (result.hasOwnProperty(subterms[i].coef)) {
-        result.subterms[subterms[i].coef] += subterms[i].exp;
-      } else {
-        result.subterms[subterms[i].coef] = subterms[i].exp;
-      }
-    } else {
-      result.coef *= subterms[i];
-    }
-  }
   return result;
 }
 
@@ -333,63 +368,34 @@ function parseSpecialTerm (str, history) {
     return null;
   }
 
-	// tokenize the string into subterms
-  let subterms = [];
-  let buffer = "";
-  for (let i = 0; i < str.length; i++) {
-    if (str[i] == '*') {
-      if (buffer.length == 0) {
-        return null;
-      } else {
-        subterms.push(buffer);
-        buffer = "";
-      }
-    } else {
-      buffer += str[i];
-    }
-  }
-  subterms.push(buffer);
+	// tokenize the string into subterms based of *
+  let subterms = tokenizeTerm(str);
 
 	// split up subterms into regular and special
 	let special = [];
 	let regular = [];
+	let middle;
 
 	for (let i = 0; i < subterms.length; i++) {
-		if (subterms[i].indexOf('@') < 0) {
+		if (subterms[i].subterm.indexOf('@') < 0) {
+			middle = parseSubterm(subterms[i].subterm);
+			subterms[i].subterm = middle
 			regular.push(subterms[i]);
 		} else {
+			middle = parseSpecialSubterm(subterms[i].subterm, history);
+			subterms[i].subterm = middle;
 			special.push(subterms[i]);
 		}
 	}
 
-	//parse special subterms
-	for (let i = 0; i < special.length; i++) {
-		special[i] = parseSpecialSubterm(special[i], history);
-	}
-	// parse regular subterms
-	for (let i = 0; i < regular.length; i++) {
-		regular[i] = parseSubterm(regular[i]);
-	}
-
-	let term = new Term();
-
-  for (let i = 0; i < regular.length; i++) {
-    if (isNaN(regular[i])) {
-      if (term.hasOwnProperty(regular[i].coef)) {
-        term.subterms[regular[i].coef] += regular[i].exp;
-      } else {
-        term.subterms[regular[i].coef] = regular[i].exp;
-      }
-    } else {
-      term.coef *= regular[i];
-    }
-  }
+	// construct term from regular subterms
+	let term = constructTermFromSubterms(regular);
 
 	// now I want to multiply the regular and special terms together
 	let p = new Polynomial([term]);
 
 	for (let i = 0; i < special.length; i++) {
-		p = polynomialMultiply(p, special[i]);
+		p = polynomialMultiply(p, special[i].subterm);
 	}
 
   return p;
@@ -403,26 +409,35 @@ function Subterm (coef, exp = 1) {
 	this.exp = exp;
 }
 
+function splitUpSubterm (str) {
+	if (str.length == 0) {
+		return null;
+	}
+
+	let coef;
+	let exp;
+	let index = str.indexOf('^');
+	if (index < 0) {
+		coef = str;
+		exp = 1;
+	} else {
+		coef = str.substring(0, index);
+		exp = str.substr(index + 1);
+		if (exp.length == 0 || coef.length == 0) {
+			console.log("exponent and coefficients cannot be empty string");
+			return null;
+		}
+	}
+	return {coef, exp};
+}
+
 // Either a number or an exponent
 function parseSubterm (str) {
-  if (str.length == 0) {
-    return null;
-  }
-
-  let coef;
-  let exp;
-  let index = str.indexOf('^');
-  if (index < 0) {
-    coef = str;
-    exp = 1;
-  } else {
-    coef = str.substring(0, index);
-    exp = str.substr(index + 1);
-    if (exp.length == 0 || coef.length == 0) {
-      console.log("exponent and coefficients cannot be empty string");
-      return null;
-    }
-  }
+	let subterm = splitUpSubterm(str);
+	if (!subterm) {
+		return null;
+	}
+	let {coef, exp} = subterm;
 
   // Exponent must be a number for now
   exp = Number(exp);
@@ -447,30 +462,35 @@ function parseSubterm (str) {
 
 
 function parseSpecialSubterm (str, specialArr) {
-  if (str.length == 0) {
-    return null;
-  }
+	let subterm = splitUpSubterm(str);
+	if (!subterm) {
+		return null;
+	}
+	let {coef, exp} = subterm;
 
-  let coef;
-  let exp;
-  let index = str.indexOf('^');
-  if (index < 0) {
-		let specialIndex = isSpecial(str);
-		if (specialIndex < 0) {
-			console.log("Invalid special term structure");
-			return null;
-		} else {
-			return specialArr[specialIndex];
+	// handle coefficient
+	if (isSpecial(coef) >= 0) {
+		let indx = isSpecial(coef);
+		coef = specialArr[indx];
+		if (exp === 1) {
+			return specialArr[indx];
 		}
-  }
+		if (isPolynomailNumber(coef)) {
+			coef = getPolynomialNumber(coef);
+		} else if (isPolynomailVariable(coef)) {
+		 	coef = getPolynomialVariable(coef);
+		} else {
+			console.log("invalid exponent");
+			return null;
+		}
+	} else if (isVariable(coef)) {
 
-	// special terms tructure of @y^x
-    coef = str.substring(0, index);
-    exp = str.substr(index + 1);
-    if (exp.length == 0 || coef.length == 0) {
-      console.log("exponent and coefficients cannot be empty string");
-      return null;
-    }
+	} else if (isNumber(coef)) {
+		coef = Number(coef);
+	} else {
+		console.log("invalid exponent");
+		return null;
+	}
 
 	// handle exponent
 	if (isSpecial(exp) >= 0) {
@@ -484,26 +504,6 @@ function parseSpecialSubterm (str, specialArr) {
 		}
 	} else if (isNumber(exp)) {
 		exp = Number(exp);
-	} else {
-		console.log("invalid exponent");
-		return null;
-	}
-	// handle coefficient
-	if (isSpecial(coef) >= 0) {
-		let indx = isSpecial(coef);
-		coef = specialArr[indx];
-		if (isPolynomailNumber(coef)) {
-			coef = getPolynomialNumber(coef);
-		} else if (isPolynomailVariable(coef)) {
-		 	coef = getPolynomialVariable(coef);
-		} else {
-			console.log("invalid exponent");
-			return null;
-		}
-	} else if (isVariable(coef)) {
-
-	} else if (isNumber(coef)) {
-		coef = Number(coef);
 	} else {
 		console.log("invalid exponent");
 		return null;
@@ -578,7 +578,7 @@ function removeSpaces (s) {
 }
 
  //parseExpression('(5*x^2 + 1) + x^3 + 1');
-parseExpression('5*(5*(2)^(-2.3) + 1)');
+parseExpression('1/t^2*t^(1/2) + y^(1/3)/y^(1/2)');
 
 // let pol1 = parsePolynomial("5");
 // let pol2 = parsePolynomial("x^3 + 2");
